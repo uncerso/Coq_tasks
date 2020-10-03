@@ -525,48 +525,10 @@ Qed.
 End task_5.
 
 Section task_6.
-
-Import all_defs.
+Import basic_defs.
 
 Definition bool_to_Bool (b : bool) :=
   if b then T else F.
-
-Definition make_formula_by_func {Vars : Type} (p1 p2: Formula Vars) (f : bool -> bool -> bool):=
-  p1 & (p2 & const Vars (bool_to_Bool (f true true)) | !p2 & const Vars (bool_to_Bool (f true false))) |
-  !p1 & (p2 & const Vars (bool_to_Bool (f false true)) | !p2 & const Vars (bool_to_Bool (f false false))).
-
-Theorem task6:
-  forall (n : nat) (Vars : Type) (p1 p2: Vars) (f : bool -> bool -> bool) , exists (g : Formula Vars), forall (interpretation : Vars -> bool),
-  (ApplyInterpretation interpretation g) = (f (ApplyInterpretation interpretation (var Vars p1)) (ApplyInterpretation interpretation (var Vars p2))).
-Proof.
-  intros.
-  constructor 1 with (make_formula_by_func (var Vars p1) (var Vars p2) f).
-  intros.
-  simpl.
-  set (P1 := interpretation p1).
-  set (P2 := interpretation p2).
-  case P1, P2.
-  - simpl.
-    case f.
-    intuition.
-    intuition.
-  - simpl.
-    case f.
-    intuition.
-    intuition.
-  - simpl.
-    case f.
-    intuition.
-    intuition.
-  - simpl.
-    case f.
-    intuition.
-    intuition.
-Qed.
-
-End task_6.
-
-(* Section task_6_2.
 
 Fixpoint n_dim_fun (n : nat):=
   match n with
@@ -578,30 +540,55 @@ Inductive array (Vars : Type) : nat -> Type :=
   | nil : array Vars 0
   | cons : forall n : nat, Vars -> array Vars n -> array Vars (S n).
 
-(* Definition tail (n : nat) (Vars : Type) (v: array Vars (S n)) : array Vars n :=
+Definition Head {n : nat} {Vars : Type} (v: array Vars (S n)) : Vars :=
   match v in array _ (S m) with
   | nil _ => False_rect unit
-  | cons _ g _ t => t
-  end. *)
+  | cons _ _ h _ => h
+  end.
 
-Fixpoint n_dim_fun_apply {n : nat} {T : Type} {Vars : Type} (interpretation : Vars -> bool) (f : n_dim_fun n) (args : array Vars n) : bool :=
-  match n, f with
-  | 0, f => f
-  | S m, f => match args in array _ (S m) with
-              | nil _ => False_rect unit
-              | cons _ _ head tail => let res := (f (interpretation head)) in
-                                      (n_dim_fun_apply interpretation res tail)
-           end
+Definition Tail {n : nat} {Vars : Type} (v: array Vars (S n)) : array Vars n :=
+  match v in array _ (S m) with
+  | nil _ => False_rect unit
+  | cons _ _ _ t => t
+  end.
+
+Fixpoint n_dim_fun_apply {n : nat} {Vars : Type} (interpretation : Vars -> bool) (f : n_dim_fun n) (args : array Vars n): bool :=
+  match n, f, args with
+  | 0, _, _ => f
+  | S m, _, _ => let h := interpretation (Head args) in
+                 let t := (Tail args) in
+                 n_dim_fun_apply interpretation (f h) t
+  end.
+
+Fixpoint make_formula_by_func {n : nat} {Vars : Type} (vars: array Vars n) (f : n_dim_fun n) : (Formula Vars) :=
+  match n, f, vars with
+  | 0, _, _ => const Vars (bool_to_Bool f)
+  | S m, _, _ => let h := var Vars (Head vars) in
+                 let t := Tail vars in
+                 or Vars
+                 (and Vars h (make_formula_by_func t (f true)))
+                 (and Vars (not Vars h) (make_formula_by_func t (f false)))
   end.
 
 Import all_defs.
 
 Theorem task5_a2:
-  forall (n : nat) (Vars : Type) (vars: array n Vars) (f : n_dim_fun n Vars) , exists (g : Formula Vars), forall (interpretation : Vars -> bool),
-  (ApplyInterpretation interpretation g) = (f (ApplyInterpretation interpretation (var Vars list))).
+  forall (n : nat) (Vars : Type) (vars: array Vars n) (f : n_dim_fun n) , exists (g : Formula Vars), forall (interpretation : Vars -> bool),
+  (ApplyInterpretation interpretation g) = (n_dim_fun_apply interpretation f vars).
 Proof.
+  intros.
+  exists (make_formula_by_func vars f).
+  intro.
+  induction n.
+  - simpl; case f; intuition; intuition.
+  - simpl.
+    set (h := interpretation (Head vars)).
+    set (t := Tail vars).
+    rewrite <- (IHn t (f h)).
+    case h.
+    -- simpl; intuition.
+    -- simpl; intuition.
+Qed.
 
-
-End task_6_2.
- *)
+End task_6.
 
