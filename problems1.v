@@ -80,6 +80,23 @@ Theorem ExpandImpl :
     intuition.
 Qed.
 
+Theorem ExpandEq :
+  forall (a b : bool), Is_true ((implB a b) && (implB b a)) <-> ((Is_true a) <-> Is_true b).
+  intuition.
+  - apply ExpandAnd in H.
+    destruct H.
+    rewrite -> ExpandImpl in H.
+    apply H, H0.
+  - apply ExpandAnd in H.
+    destruct H.
+    rewrite -> ExpandImpl in H1.
+    apply H1, H0.
+  - apply ExpandAnd.
+    rewrite -> ExpandImpl.
+    rewrite -> ExpandImpl.
+    intuition.
+Qed.
+
 Inductive Bool : Type :=
   | T : Bool
   | F : Bool
@@ -119,6 +136,25 @@ Definition IsEqual {Vars : Type} (p1 p2: Formula Vars) :=
       (implB (ApplyInterpretation interpretation p1) (ApplyInterpretation interpretation p2))
       (implB (ApplyInterpretation interpretation p2) (ApplyInterpretation interpretation p1))).
 
+Definition IsEqual2 {Vars : Type} (p1 p2: Formula Vars) :=
+  forall interpretation : Vars -> bool,
+      Is_true (ApplyInterpretation interpretation p1) <-> Is_true (ApplyInterpretation interpretation p2).
+
+Theorem Equal_is_Equal2:
+  forall (Vars : Type) (f g: Formula Vars), (IsEqual f g) <-> (IsEqual2 f g).
+Proof.
+  intros.
+  unfold IsEqual, IsEqual2.
+  split.
+  - intro; intro.
+    rewrite <- ExpandEq.
+    intuition.
+  - intro; intro.
+    rewrite -> ExpandEq.
+    revert interpretation.
+    apply H.
+Qed.
+
 End basic_defs.
 
 Module all_defs.
@@ -150,6 +186,7 @@ Notation "a <--> b" := (__Eq a b) (at level 95, no associativity).
 Notation "|= F" := (IsTautology F) (at level 100, no associativity).
 Notation "F |= G" := (IsInheritsModels F G) (at level 100, no associativity).
 Notation "F ~ G" := (IsEqual F G) (at level 100, no associativity).
+Notation "F [ g ]" := (ApplyInterpretation F g) (at level 10, no associativity).
 
 End all_defs.
 
@@ -323,8 +360,8 @@ Proof.
   intros.
   unfold IsModelOf.
   simpl.
-  set (P := ApplyInterpretation interpretation p).
-  set (Q := ApplyInterpretation interpretation q).
+  set (P := interpretation[p]).
+  set (Q := interpretation[q]).
   case P.
   - case Q.
     intuition.
@@ -572,7 +609,7 @@ Fixpoint make_formula_by_func {n : nat} {Vars : Type} (vars: array Vars n) (f : 
 
 Import all_defs.
 
-Theorem task5_a2:
+Theorem task6:
   forall (n : nat) (Vars : Type) (vars: array Vars n) (f : n_dim_fun n) , exists (g : Formula Vars), forall (interpretation : Vars -> bool),
   (ApplyInterpretation interpretation g) = (n_dim_fun_apply interpretation f vars).
 Proof.
@@ -592,3 +629,159 @@ Qed.
 
 End task_6.
 
+Section task_7.
+Import basic_defs.
+
+Fixpoint IsPositive {Vars : Type} (f : Formula Vars) :=
+  match f with 
+  | not _ _ => False
+  | const _ _ => True
+  | var _ _ => True
+  | or _ f g => IsPositive f /\ IsPositive g
+  | and _ f g => IsPositive f /\ IsPositive g
+  end.
+
+Definition nested_inversion {Vars : Type} (from to : Vars -> bool) :=
+  forall (v : Vars), Is_true (from v) -> Is_true (to v).
+
+Definition IsMonotonic {Vars : Type} (h : Formula Vars) :=
+  forall (F G : Vars -> bool), ((IsModelOf F h) /\ (nested_inversion F G)) -> (IsModelOf G h).
+
+Import all_defs.
+
+Theorem task7_part_a:
+  forall (Vars : Type) (F G : Vars -> bool),
+      (nested_inversion F G) <->
+      forall (h : Formula Vars), (IsPositive h) -> Is_true (F[h]) -> Is_true (G[h]).
+Proof.
+  intros.
+  split.
+  - intros H h P A.
+    induction h.
+    -- intuition.
+    -- revert A; apply H.
+    -- revert P; simpl; intuition.
+    -- destruct P as [P1 P2].
+       revert A; simpl. 
+       rewrite -> ExpandOr; rewrite -> ExpandOr.
+       intuition.
+    -- destruct P as [P1 P2].
+       revert A; simpl.
+       rewrite -> ExpandAnd; rewrite -> ExpandAnd.
+       intuition.
+  - intros.
+    unfold nested_inversion.
+    intro.
+    set (V := (var Vars v)).
+    apply (H V).
+    reflexivity.
+Qed.
+
+Lemma forall_not:
+  forall (Vars : Type) (f : Formula Vars) (G : Vars -> bool),
+  (forall interpretation : Vars -> bool, Is_true (negb (interpretation [f]))) -> (Is_true(G [f]) <-> False).
+Proof.
+  intuition.
+  apply -> ExpandNot in H.
+  intuition.
+  destruct H.
+  apply H0.
+Qed.
+
+(* в одну сторону верно *)
+Theorem task7_part_b:
+  forall (Vars : Type) (f : Formula Vars),
+    ((|= f) \/ (|= !f) \/ (exists (g : Formula Vars), (IsPositive g) /\ (g ~ f))) -> (IsMonotonic f).
+Proof.
+  intros.
+  intuition.
+  - unfold "|= _" in H0.
+    unfold IsMonotonic.
+    intuition.
+  - unfold "|= _" in H.
+    unfold IsMonotonic.
+    intuition.
+    unfold IsModelOf.
+    unfold IsModelOf in H.
+    simpl in H.
+    apply (forall_not Vars f G H).
+    apply (forall_not Vars f F0 H) in H1.
+    apply H1.
+  - unfold IsMonotonic.
+    intuition.
+    destruct H.
+    rewrite -> Equal_is_Equal2 in H.
+    destruct H.
+    unfold IsEqual2 in H0.
+    rewrite <- (H0 G).
+    rewrite <- (H0 F0) in H1.
+    apply (task7_part_a Vars F0 G).
+    -- apply H2.
+    -- apply H.
+    -- apply H1.
+Qed.
+
+(* Inductive SinglVar := vvv.
+
+Lemma xxx:
+   forall (v : SinglVar), v = vvv.
+   destruct v; reflexivity.
+Qed.
+
+(* А вот в другую сторону теорема не выполняется! :(   *)
+Theorem task7_part_b_absurd:
+  exists (Vars : Type) (f : Formula Vars),
+  (IsMonotonic f) /\ ~((|= f) \/ (|= !f) \/ (exists (g : Formula Vars), (IsPositive g) /\ (g ~ f))).
+Proof.
+  exists SinglVar, !(var SinglVar vvv).
+  intuition.
+  - unfold IsMonotonic.
+    unfold IsModelOf.
+    unfold nested_inversion.
+    simpl.
+    intuition.
+    assert (L : (forall v : SinglVar, Is_true (F0 v) -> Is_true (G v)) <-> (Is_true (F0 vvv) -> Is_true (G vvv))).
+    -- intuition.
+    -- intuition.
+       revert H0 H3.
+       case F0, G.
+       --- simpl; intuition.
+       --- simpl; intuition.
+       --- admit.
+       --- simpl. intuition.
+           rewrite ExpandNot.
+           intuition.
+           rewrite <- H2 in H3.
+  - revert H0.
+    unfold "|= _".
+    unfold IsModelOf.
+    simpl.
+    intro.
+    destruct (H0 (fun vvv => true)).
+  - revert H.
+    unfold "|= _".
+    unfold IsModelOf.
+    simpl.
+    intro.
+    destruct (H (fun vvv => false)).
+  - revert H.
+    unfold "|= _".
+    unfold IsModelOf.
+    simpl.
+    intro.
+    destruct H.
+    intuition.
+    induction x.
+    -- destruct c.
+       --- unfold "_ ~ _" in H1; destruct (H1 (fun vvv => true)).
+       --- unfold "_ ~ _" in H1; destruct (H1 (fun vvv => false)).
+    -- unfold "_ ~ _" in H1; destruct (H1 (fun vvv => true)).
+    -- unfold IsPositive in H0; apply H0.
+    -- unfold IsPositive in H0.
+       intuition.
+       rewrite Equal_is_Equal2 in H1.
+       unfold IsEqual2 in H1.
+       simpl in H1.
+Qed.
+ *)
+End task_7.
