@@ -647,6 +647,27 @@ Definition nested_inversion {Vars : Type} (from to : Vars -> bool) :=
 Definition IsMonotonic {Vars : Type} (h : Formula Vars) :=
   forall (F G : Vars -> bool), ((IsModelOf F h) /\ (nested_inversion F G)) -> (IsModelOf G h).
 
+Definition IsLiteral {Vars : Type} (h : Formula Vars) :=
+  match h with
+  | var _ _ => True
+  | not _ (var _ _) => True
+  | _ => False
+  end.
+
+Fixpoint IsDisj {Vars : Type} (h : Formula Vars) :=
+  (IsLiteral h) \/
+  match h with
+  | or _ a b => (IsLiteral h) /\ (IsDisj b)
+  | _ => False
+  end.
+
+Fixpoint IsConj {Vars : Type} (h : Formula Vars) :=
+  (IsDisj h) \/
+  match h with
+  | and _ a b => (IsDisj a) /\ (IsConj b)
+  | _ => False
+  end.
+
 Import all_defs.
 
 Theorem task7_part_a:
@@ -719,6 +740,165 @@ Proof.
     -- apply H2.
     -- apply H.
     -- apply H1.
+Qed.
+
+Lemma double_monotonic:
+  forall (Vars : Type) (f1 f2: Formula Vars), IsMonotonic (and Vars f1 f2) -> ((IsMonotonic f1) /\ (IsMonotonic f2)).
+Proof.
+  intros.
+  unfold IsMonotonic in H.
+  unfold IsModelOf in H.
+  simpl in H.
+  assert (L : (forall F G : Vars -> bool,
+    Is_true (F [f1] && F [f2]) /\ nested_inversion F G -> Is_true (G [f1] && G [f2])) -> (forall F G : Vars -> bool,
+    (Is_true (F [f1]) /\ Is_true (F [f2])) /\ nested_inversion F G -> (Is_true (G [f1]) /\ Is_true (G [f2])))).
+  - intro; intro; intro; rewrite <- ExpandAnd; rewrite <- ExpandAnd; revert F0 G; apply H0. -
+   unfold IsMonotonic.
+   unfold IsModelOf.
+   intuition.
+   assert (Is_true (G [f1]) /\ Is_true (G [f2]) -> Is_true (G [f1])).
+    -- intuition. --
+    apply H1.
+    apply (H0 F0 G).
+    intuition.
+Admitted.
+
+Lemma ApplyIsDisj:
+  forall (Vars : Type) (f : Formula Vars), IsDisj f -> IsConj f.
+Proof.
+   intuition.
+   destruct f.
+   - simpl. intuition.
+   - simpl. intuition.
+   - simpl. intuition.
+   - simpl. intuition.
+   - simpl. intuition.
+Qed.
+
+
+(* Доказательство в обратную сторону. Сразу будем считать, что формула в КНФ *)
+Theorem task7_part_b_2:
+  forall (Vars : Type) (f : Formula Vars),
+    (IsMonotonic f) /\ (IsConj f) -> ((|= f) \/ (|= !f) \/ (exists (g : Formula Vars), (IsPositive g) /\ (g ~ f))).
+Proof.
+  intuition.
+  induction f.
+  - unfold "|= _".
+    destruct c.
+    -- unfold IsModelOf. intuition.
+    -- unfold IsModelOf. intuition.
+  - right; right.
+    exists (var Vars v); simpl.
+    rewrite Equal_is_Equal2.
+    unfold IsEqual2.
+    intuition.
+  - unfold IsConj in H1. unfold IsDisj in H1. unfold IsLiteral in H1. intuition. destruct f.
+    -- intuition.
+    -- unfold IsMonotonic in H0. destruct (H0 (fun _ => false) (fun _ => true)). unfold nested_inversion. intuition.
+    -- intuition.
+    -- intuition.
+    -- intuition.
+  - unfold IsConj in H1; intuition.
+    simpl in H.
+    intuition.
+  - unfold IsConj in H1.
+    intuition.
+    simpl in H.
+    intuition.
+    right; right.
+    apply double_monotonic in H0.
+    intuition.
+    -- destruct H0.
+    --- apply ApplyIsDisj. apply H1.
+    --- exists (const Vars T).
+        simpl. intuition.
+        unfold "|= _" in H4.
+        unfold IsModelOf in H4.
+        unfold "|= _" in H0.
+        unfold IsModelOf in H0.
+        rewrite Equal_is_Equal2.
+        unfold IsEqual2.
+        simpl.
+        intuition.
+    --- intuition.
+    ---- exists (const Vars F). simpl.
+        rewrite Equal_is_Equal2.
+        unfold IsEqual2.
+        simpl.
+        unfold "|= _" in H5.
+        unfold IsModelOf in H5.
+        simpl in H5.
+        intuition.
+        rewrite ExpandAnd in H0.
+        intuition.
+        revert H6.
+        assert ((Is_true (interpretation [f1]) -> False) <-> Is_true (negb (interpretation [f1]))).
+        ----- intuition. rewrite ExpandNot in H0. intuition. -----
+        apply H0. intuition.
+   ---- unfold "|= _" in H4.
+        unfold IsModelOf in H4.
+        destruct H5. exists x. intuition. rewrite Equal_is_Equal2. unfold IsEqual2.
+        simpl. intuition.
+        ----- rewrite ExpandAnd. intuition.
+              rewrite Equal_is_Equal2 in H6. unfold IsEqual2 in H6.
+              rewrite (H6 interpretation) in H0.
+              apply H0.
+        ----- rewrite ExpandAnd in H0. intuition.
+              rewrite Equal_is_Equal2 in H6. unfold IsEqual2 in H6.
+              rewrite <- (H6 interpretation) in H7.
+              apply H7.
+  -- exists (const Vars F). simpl.
+     unfold "|= _" in H5.
+     unfold IsModelOf in H5.
+     simpl in H5.
+     rewrite Equal_is_Equal2. unfold IsEqual2.
+     simpl. intuition.
+     assert ((Is_true (interpretation [f2]) -> False) <-> Is_true (negb (interpretation [f2]))).
+     ----- intuition; rewrite ExpandNot in H6; intuition. -----
+     rewrite ExpandAnd in H4.
+     intuition.
+  -- destruct H0.
+  --- apply ApplyIsDisj. apply H1.
+  --- destruct H5.
+      exists x.
+      intuition.
+      rewrite Equal_is_Equal2. unfold IsEqual2.
+      simpl; intuition.
+      ---- unfold "|= _" in H0.
+           unfold IsModelOf in H0.
+           simpl in H0.
+           rewrite Equal_is_Equal2 in H6. unfold IsEqual2 in H6.
+           rewrite ExpandAnd.
+           intuition.
+           apply (H6 interpretation) in H4.
+           apply H4.
+      ---- rewrite Equal_is_Equal2 in H6. unfold IsEqual2 in H6.
+           rewrite ExpandAnd in H4.
+           intuition.
+           apply <- (H6 interpretation) in H8.
+           apply H8.
+  --- destruct H0.
+      ---- exists (const Vars F).
+           unfold "|= _" in H0.
+           unfold IsModelOf in H0.
+           simpl in H0.
+           simpl.
+           rewrite Equal_is_Equal2. unfold IsEqual2.
+           simpl. intuition.
+           rewrite ExpandAnd in H4.
+           assert ((Is_true (interpretation [f1]) -> False) <-> Is_true (negb (interpretation [f1]))).
+           ----- intuition. rewrite ExpandNot in H4. intuition. -----
+           intuition.
+      ---- destruct H5, H0.
+           exists (x & x0).
+           simpl; intuition.
+           rewrite Equal_is_Equal2. unfold IsEqual2.
+           rewrite Equal_is_Equal2 in H6, H7. unfold IsEqual2 in H6, H7.
+           simpl. intro. rewrite ExpandAnd. rewrite ExpandAnd. intuition.
+           ----- apply (H7 interpretation). apply H9.
+           ----- apply (H6 interpretation). apply H8.
+           ----- apply (H6 interpretation). apply H9.
+           ----- apply (H7 interpretation). apply H8.
 Qed.
 
 End task_7.
