@@ -688,7 +688,7 @@ Proof.
   apply H0.
 Qed.
 
-(* в одну сторону верно *)
+(* Доказательство в одну сторону *)
 Theorem task7_part_b:
   forall (Vars : Type) (f : Formula Vars),
     ((|= f) \/ (|= !f) \/ (exists (g : Formula Vars), (IsPositive g) /\ (g ~ f))) -> (IsMonotonic f).
@@ -721,67 +721,4 @@ Proof.
     -- apply H1.
 Qed.
 
-(* Inductive SinglVar := vvv.
-
-Lemma xxx:
-   forall (v : SinglVar), v = vvv.
-   destruct v; reflexivity.
-Qed.
-
-(* А вот в другую сторону теорема не выполняется! :(   *)
-Theorem task7_part_b_absurd:
-  exists (Vars : Type) (f : Formula Vars),
-  (IsMonotonic f) /\ ~((|= f) \/ (|= !f) \/ (exists (g : Formula Vars), (IsPositive g) /\ (g ~ f))).
-Proof.
-  exists SinglVar, !(var SinglVar vvv).
-  intuition.
-  - unfold IsMonotonic.
-    unfold IsModelOf.
-    unfold nested_inversion.
-    simpl.
-    intuition.
-    assert (L : (forall v : SinglVar, Is_true (F0 v) -> Is_true (G v)) <-> (Is_true (F0 vvv) -> Is_true (G vvv))).
-    -- intuition.
-    -- intuition.
-       revert H0 H3.
-       case F0, G.
-       --- simpl; intuition.
-       --- simpl; intuition.
-       --- admit.
-       --- simpl. intuition.
-           rewrite ExpandNot.
-           intuition.
-           rewrite <- H2 in H3.
-  - revert H0.
-    unfold "|= _".
-    unfold IsModelOf.
-    simpl.
-    intro.
-    destruct (H0 (fun vvv => true)).
-  - revert H.
-    unfold "|= _".
-    unfold IsModelOf.
-    simpl.
-    intro.
-    destruct (H (fun vvv => false)).
-  - revert H.
-    unfold "|= _".
-    unfold IsModelOf.
-    simpl.
-    intro.
-    destruct H.
-    intuition.
-    induction x.
-    -- destruct c.
-       --- unfold "_ ~ _" in H1; destruct (H1 (fun vvv => true)).
-       --- unfold "_ ~ _" in H1; destruct (H1 (fun vvv => false)).
-    -- unfold "_ ~ _" in H1; destruct (H1 (fun vvv => true)).
-    -- unfold IsPositive in H0; apply H0.
-    -- unfold IsPositive in H0.
-       intuition.
-       rewrite Equal_is_Equal2 in H1.
-       unfold IsEqual2 in H1.
-       simpl in H1.
-Qed.
- *)
 End task_7.
